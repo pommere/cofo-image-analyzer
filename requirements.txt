@@ -3,5 +3,5 @@ pandas
 numpy
 opencv-python-headless
 Pillow>=10.0.0
-streamlit-drawable-canvas==0.9.3
+streamlit-drawable-canvas==0.8.0
 plotly
