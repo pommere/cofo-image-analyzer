@@ -134,15 +134,5 @@ if sample_file:
         else:
             st.write("Click a point on the image to see results.")
 
-    # --- 6. HISTOGRAM ---
-    with st.expander("📊 RGB Color Distribution"):
-        import plotly.graph_objects as go
-        fig = go.Figure()
-        for i, color in enumerate(['red', 'green', 'blue']):
-            hist, bins = np.histogram(processed_arr[:, :, i], bins=256, range=(0, 256))
-            fig.add_trace(go.Scatter(x=bins[:-1], y=hist, name=color.capitalize(), line=dict(color=color)))
-        fig.update_layout(title="Full Image Intensity Histogram", xaxis_title="Bit Value (0-255)", yaxis_title="Pixel Count")
-        st.plotly_chart(fig, use_container_width=True)
-
 else:
     st.info("Please upload a sample image to begin analysis.")
