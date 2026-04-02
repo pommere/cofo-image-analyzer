@@ -4,4 +4,5 @@ numpy
 opencv-python-headless
 Pillow
 streamlit-image-coordinates
+streamlit-drawable-canvas
 plotly

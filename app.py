@@ -4,7 +4,7 @@ import numpy as np
 import cv2
 from PIL import Image
 import os
-from streamlit_image_coordinates import streamlit_image_coordinates
+from streamlit_drawable_canvas import st_canvas
 
 # --- 1. SETTINGS & BRANDING ---
 logo_path = "cofo-logo.jpg"
@@ -13,7 +13,7 @@ favicon = Image.open(logo_path) if os.path.exists(logo_path) else None
 st.set_page_config(
     page_title="CofO | Image Analysis Lab", 
     page_icon=favicon, 
-    layout="centered"  # Reverted to centered for mobile screens
+    layout="centered" 
 )
 
 # Custom CSS for College of the Ozarks Branding
@@ -50,29 +50,38 @@ with col2:
     """, unsafe_allow_html=True)
 
 st.markdown(r"""
-Welcome to the Physics Lab! Students deduce the local acceleration due to gravity ($g$)
-by modeling human locomotion as an **inverted pendulum**. The validity of this model
-is explored by examining the **Froude Number** ($Fr$) constraints and biological noise found
-in their own gait.
+Welcome to the Digital Image Analysis Lab! This tool allows you to convert qualitative 
+visual observations into quantitative physical data. 
 
-1. Upload your **Phyphox CSV** file below.
-2. The app will calculate the FFT to estimate $g$ from your stride period.
+1. **Upload your Sample Image** (and optional Dark Frame).
+2. **Calibrate your scale** and select a **Selection Tool** in the sidebar.
+3. **Analyze regions** to extract mean intensities ($I$) and calculate physical areas ($mm^2$).
 """)
 
-# --- 3. SIDEBAR CONTROLS ---
-st.sidebar.header("1. Laboratory Module")
-module = st.sidebar.selectbox("Select Experiment", 
-    ["Mars Rock Phosphorescence", "Polarization & Birefringence", "Chromomagnetic Ferrofluids", "General Analysis"])
+# --- 3. SIDEBAR: SELECTION TOOLS ---
+st.sidebar.header("1. Analysis Tools")
+tool_mode = st.sidebar.selectbox(
+    "Selection Tool",
+    ("Point", "Rectangle", "Circle", "Freehand"),
+    index=1
+)
+
+drawing_mode = {
+    "Point": "point",
+    "Rectangle": "rect",
+    "Circle": "circle",
+    "Freehand": "freedraw"
+}[tool_mode]
+
+stroke_width = st.sidebar.slider("Stroke Width", 1, 10, 3)
 
 st.sidebar.header("2. Calibration")
-px_to_mm = st.sidebar.number_input("Scale (pixels per mm)", value=1.0, min_value=0.001)
+px_to_mm = st.sidebar.number_input("Scale (pixels per mm)", value=1.0, min_value=0.001, format="%.4f")
 
-# --- 4. IMAGE LOADING & BACKGROUND SUBTRACTION ---
+# --- 4. IMAGE LOADING & PROCESSING ---
 st.subheader("📁 Data Input")
-
-# Stacked vertically for mobile rather than side-by-side columns
 sample_file = st.file_uploader("Upload Sample Image", type=["jpg", "jpeg", "png"])
-with st.expander("Advanced: Upload Dark Frame (Background Subtraction)"):
+with st.expander("Advanced: Background Subtraction"):
     dark_file = st.file_uploader("Upload Dark/Reference Frame", type=["jpg", "jpeg", "png"])
 
 if sample_file:
@@ -82,67 +91,95 @@ if sample_file:
     if dark_file:
         dark_img = Image.open(dark_file).convert("RGB")
         dark_arr = np.array(dark_img)
-        
         if sample_arr.shape == dark_arr.shape:
             processed_arr = cv2.subtract(sample_arr, dark_arr)
             st.success("✅ Background Subtraction Applied")
         else:
-            st.error("❌ Error: Image dimensions must match for subtraction.")
+            st.error("❌ Dimension Mismatch")
             processed_arr = sample_arr
     else:
         processed_arr = sample_arr
 
-    # --- 5. INTERACTIVE ANALYSIS (Vertical Layout) ---
+    # --- 5. INTERACTIVE CANVAS ---
     st.divider()
-    st.subheader("Analysis View")
-    st.info("Tap on the image below to extract RGB values.")
+    st.subheader(f"Tool: {tool_mode}")
     
-    # Image takes up full width of the centered container
-    value = streamlit_image_coordinates(Image.fromarray(processed_arr), use_column_width=True)
+    # Calculate responsive height to maintain aspect ratio on canvas
+    real_h, real_w, _ = processed_arr.shape
+    display_width = 700 # Standard centered width
+    scale_factor = real_w / display_width
+    display_height = int(real_h / scale_factor)
 
-    if value:
-        st.markdown("---")
-        st.subheader("Pixel Data")
-        
-        real_height, real_width, _ = processed_arr.shape
-        display_width = value['width']
-        display_height = value['height']
-        
-        width_scale = real_width / display_width
-        height_scale = real_height / display_height
-        
-        x = int(value['x'] * width_scale)
-        y = int(value['y'] * height_scale)
-        
-        x = min(x, real_width - 1)
-        y = min(y, real_height - 1)
-        
-        r, g, b = processed_arr[y, x]
-        
-        # Metrics stack nicely on small screens natively
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Red", r)
-        m2.metric("Green", g)
-        m3.metric("Blue", b)
-        
-        intensity = 0.299*r + 0.587*g + 0.114*b
-        m4.metric("Luminance", f"{intensity:.1f}")
-        
-        st.write(f"**True Pixel Coordinates:** ({x}, {y})")
-        st.caption(f"Physical Location: ({x/px_to_mm:.2f}, {y/px_to_mm:.2f}) mm")
+    canvas_result = st_canvas(
+        fill_color="rgba(141, 32, 60, 0.3)", 
+        stroke_width=stroke_width,
+        stroke_color="#8D203C",
+        background_image=Image.fromarray(processed_arr),
+        update_streamlit=True,
+        height=display_height,
+        width=display_width,
+        drawing_mode=drawing_mode,
+        key="canvas",
+    )
 
-    else:
-        st.markdown("---")
-        st.warning("Awaiting interaction. Tap a point on the image above.")
+    # --- 6. DATA EXTRACTION ---
+    if canvas_result.json_data is not None:
+        objects = canvas_result.json_data["objects"]
+        if objects:
+            st.markdown("---")
+            st.subheader("Region Statistics")
+            
+            # Target the most recent shape
+            obj = objects[-1]
+            
+            # Map display coords back to real array indices
+            left = int(obj["left"] * scale_factor)
+            top = int(obj["top"] * scale_factor)
+            
+            if obj["type"] == "rect":
+                w = int(obj["width"] * scale_factor)
+                h = int(obj["height"] * scale_factor)
+                
+                # Slice array to get ROI
+                roi = processed_arr[top:top+h, left:left+w]
+                
+                if roi.size > 0:
+                    r_avg, g_avg, b_avg = np.mean(roi, axis=(0, 1))
+                    
+                    c1, c2, c3, c4 = st.columns(4)
+                    c1.metric("Avg Red", f"{r_avg:.1f}")
+                    c2.metric("Avg Green", f"{g_avg:.1f}")
+                    c3.metric("Avg Blue", f"{b_avg:.1f}")
+                    
+                    area_mm = (w * h) / (px_to_mm**2)
+                    c4.metric("Area", f"{area_mm:.2f} mm²")
+                    st.caption(f"Bounding Box: {w}x{h} px")
 
-    # --- 6. HISTOGRAM ---
+            elif obj["type"] == "point":
+                # Points in st_canvas have small offsets, center them
+                x, y = left, top
+                r, g, b = processed_arr[y, x]
+                
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Red", r)
+                c2.metric("Green", g)
+                c3.metric("Blue", b)
+                st.write(f"**Coordinates:** ({x}, {y}) px")
+
+            elif obj["type"] == "circle":
+                radius = obj["radius"] * scale_factor
+                area_mm = (np.pi * radius**2) / (px_to_mm**2)
+                st.metric("Circular Area", f"{area_mm:.2f} mm²")
+                st.write(f"**Radius:** {radius:.1f} px")
+
+    # --- 7. HISTOGRAM ---
     with st.expander("📊 RGB Color Distribution"):
         import plotly.graph_objects as go
         fig = go.Figure()
         for i, color in enumerate(['red', 'green', 'blue']):
             hist, bins = np.histogram(processed_arr[:, :, i], bins=256, range=(0, 256))
             fig.add_trace(go.Scatter(x=bins[:-1], y=hist, name=color.capitalize(), line=dict(color=color)))
-        fig.update_layout(title="Full Image Intensity Histogram", xaxis_title="Bit Value (0-255)", yaxis_title="Pixel Count")
+        fig.update_layout(title="Intensity Histogram", xaxis_title="Bit Value", yaxis_title="Pixel Count")
         st.plotly_chart(fig, use_container_width=True)
 
 else:
