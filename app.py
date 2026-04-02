@@ -100,26 +100,28 @@ if sample_file:
     else:
         processed_arr = sample_arr
 
-    # --- 5. INTERACTIVE CANVAS ---
+# --- 5. INTERACTIVE CANVAS ---
     st.divider()
     st.subheader(f"Tool: {tool_mode}")
     
-    # 1. Standardize display width for mobile (320-350px is safe for phones)
+    # Force the array to uint8 to prevent 'blank' rendering issues
+    display_img = Image.fromarray(processed_arr.astype(np.uint8))
+    
+    # Standardize width for mobile-friendly use
     canvas_width = 350 
     real_h, real_w, _ = processed_arr.shape
-    
-    # 2. Calculate scale and height as integers
     scale_factor = real_w / canvas_width
     canvas_height = int(real_h / scale_factor)
 
-    # 3. Use the file name in the key to force a refresh on new upload
-    canvas_key = f"canvas_{sample_file.name}"
+    # Key includes 'dark_file' status so it resets when subtraction is toggled
+    bg_status = "dark" if dark_file else "sample"
+    canvas_key = f"canvas_{sample_file.name}_{bg_status}"
 
     canvas_result = st_canvas(
         fill_color="rgba(141, 32, 60, 0.3)", 
         stroke_width=stroke_width,
         stroke_color="#8D203C",
-        background_image=Image.fromarray(processed_arr),
+        background_image=display_img, # Explicitly processed PIL image
         update_streamlit=True,
         height=canvas_height,
         width=canvas_width,
@@ -134,32 +136,34 @@ if sample_file:
             st.markdown("---")
             st.subheader("Region Statistics")
             
-            # Target the most recent shape drawn
             obj = objects[-1]
             
-            # Map display coords to real array indices
-            # Note: left/top are the top-left of the bounding box
+            # Extract standard coordinates
             left = int(obj["left"] * scale_factor)
             top = int(obj["top"] * scale_factor)
             
-            if obj["type"] in ["rect", "circle"]:
-                # Get dimensions based on shape type
+            # Handle Shapes (Rect, Circle, and now Path/Freehand)
+            if obj["type"] in ["rect", "circle", "path"]:
                 if obj["type"] == "rect":
                     w = int(obj["width"] * scale_factor)
                     h = int(obj["height"] * scale_factor)
-                else: # Circle
+                elif obj["type"] == "circle":
                     r = int(obj["radius"] * scale_factor)
                     w, h = 2*r, 2*r
-                    left, top = int((obj["left"] - obj["radius"]) * scale_factor), int((obj["top"] - obj["radius"]) * scale_factor)
+                    left = int((obj["left"] - obj["radius"]) * scale_factor)
+                    top = int((obj["top"] - obj["radius"]) * scale_factor)
+                elif obj["type"] == "path":
+                    # Freehand bounding box
+                    w = int(obj["width"] * scale_factor)
+                    h = int(obj["height"] * scale_factor)
 
-                # BOUNDARY CHECK: Ensure we aren't slicing outside the image
+                # Boundary safety check
                 y1, y2 = max(0, top), min(real_h, top + h)
                 x1, x2 = max(0, left), min(real_w, left + w)
                 
                 roi = processed_arr[y1:y2, x1:x2]
                 
                 if roi.size > 0:
-                    # Calculate Mean RGB for the region
                     avg_rgb = np.mean(roi, axis=(0, 1))
                     
                     m1, m2, m3 = st.columns(3)
@@ -167,18 +171,17 @@ if sample_file:
                     m2.metric("Avg Green", f"{avg_rgb[1]:.1f}")
                     m3.metric("Avg Blue", f"{avg_rgb[2]:.1f}")
                     
-                    # Calculate Area
                     area_mm = ( (x2-x1) * (y2-y1) ) / (px_to_mm**2)
-                    st.write(f"**Physical Area:** {area_mm:.2f} mm²")
+                    st.write(f"**Physical Area (Bounding Box):** {area_mm:.2f} mm²")
+                    
+                    # Add a quick peak intensity check (useful for phosphorescence)
+                    st.caption(f"Peak Intensity in ROI: {np.max(roi):.0f}")
                 else:
                     st.warning("Selection is outside image boundaries.")
 
             elif obj["type"] == "point":
-                # For points, we take a tiny 3x3 average to be more robust than 1 pixel
-                x = int(obj["left"] * scale_factor)
-                y = int(obj["top"] * scale_factor)
-                
-                # Center the 3x3 window
+                # Robust 3x3 average for single points
+                x, y = left, top
                 roi = processed_arr[max(0, y-1):y+2, max(0, x-1):x+2]
                 avg_rgb = np.mean(roi, axis=(0, 1))
                 
@@ -186,7 +189,6 @@ if sample_file:
                 m1.metric("Red", f"{avg_rgb[0]:.0f}")
                 m2.metric("Green", f"{avg_rgb[1]:.0f}")
                 m3.metric("Blue", f"{avg_rgb[2]:.0f}")
-                st.caption(f"Coordinates: ({x}, {y}) px")
 
     # --- 7. HISTOGRAM ---
     with st.expander("📊 RGB Color Distribution"):
