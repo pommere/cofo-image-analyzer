@@ -4,6 +4,7 @@ import numpy as np
 import cv2
 from PIL import Image
 import os
+from io import BytesIO
 from streamlit_drawable_canvas import st_canvas
 
 # --- 1. SETTINGS & BRANDING ---
@@ -68,42 +69,44 @@ stroke_width = st.sidebar.slider("Stroke Width", 1, 10, 3)
 st.sidebar.header("2. Calibration")
 px_to_mm = st.sidebar.number_input("Scale (pixels per mm)", value=1.0, min_value=0.001, format="%.4f")
 
-# --- 4. IMAGE LOADING & PROCESSING ---
+# --- 4. STABLE IMAGE LOADING (Prevents Session Crashes) ---
+@st.cache_data(show_spinner=False)
+def get_processed_image(file_bytes, dark_bytes=None):
+    # Process in a cached function so the Array memory address never changes
+    img = Image.open(BytesIO(file_bytes)).convert("RGB")
+    arr = np.array(img)
+    if dark_bytes:
+        d_img = Image.open(BytesIO(dark_bytes)).convert("RGB")
+        d_arr = np.array(d_img)
+        if arr.shape == d_arr.shape:
+            arr = cv2.subtract(arr, d_arr)
+    return arr
+
 st.subheader("📁 Data Input")
 sample_file = st.file_uploader("Upload Sample Image", type=["jpg", "jpeg", "png"])
 with st.expander("Advanced: Background Subtraction"):
     dark_file = st.file_uploader("Upload Dark/Reference Frame", type=["jpg", "jpeg", "png"])
 
 if sample_file:
-    sample_img = Image.open(sample_file).convert("RGB")
-    sample_arr = np.array(sample_img)
+    # Read bytes to pass to the cached processor
+    s_bytes = sample_file.getvalue()
+    d_bytes = dark_file.getvalue() if dark_file else None
+    
+    processed_arr = get_processed_image(s_bytes, d_bytes)
+    real_h, real_w, _ = processed_arr.shape
 
-    if dark_file:
-        dark_img = Image.open(dark_file).convert("RGB")
-        dark_arr = np.array(dark_img)
-        if sample_arr.shape == dark_arr.shape:
-            processed_arr = cv2.subtract(sample_arr, dark_arr)
-            st.success("✅ Background Subtraction Applied")
-        else:
-            st.error("❌ Dimension Mismatch")
-            processed_arr = sample_arr
-    else:
-        processed_arr = sample_arr
-
-    # --- 5. INTERACTIVE CANVAS (0.8.0 Compatibility) ---
+    # --- 5. INTERACTIVE CANVAS ---
     st.divider()
     
+    # Standardize dimensions for mobile stability
     canvas_width = 350 
-    real_h, real_w, _ = processed_arr.shape
     scale_factor = real_w / canvas_width
     canvas_height = int(real_h / scale_factor)
 
+    # Convert to PIL for the canvas component
     display_pil = Image.fromarray(processed_arr.astype(np.uint8))
     
-    # In 0.8.0, the key and background_image handling is simpler
-    # Using a simpler, more stable key to prevent SessionInfo desync
-    canvas_key = f"canvas_lab_{sample_file.name}"
-
+    # CRITICAL: A stable hardcoded key prevents "SessionInfo" desync errors
     canvas_result = st_canvas(
         fill_color="rgba(141, 32, 60, 0.3)", 
         stroke_width=stroke_width,
@@ -113,7 +116,7 @@ if sample_file:
         height=canvas_height,
         width=canvas_width,
         drawing_mode=drawing_mode,
-        key=canvas_key,
+        key="stable_lab_canvas",
     )
 
     # --- 6. DATA EXTRACTION ---
@@ -123,7 +126,10 @@ if sample_file:
             st.markdown("---")
             st.subheader("Region Statistics")
             
+            # Target the most recent shape drawn
             obj = objects[-1]
+            
+            # Map display coords to real array indices
             left = int(obj["left"] * scale_factor)
             top = int(obj["top"] * scale_factor)
             
@@ -135,9 +141,10 @@ if sample_file:
                     w, h = 2*r, 2*r
                     left = int((obj["left"] - obj["radius"]) * scale_factor)
                     top = int((obj["top"] - obj["radius"]) * scale_factor)
-                elif obj["type"] == "path":
+                elif obj["type"] == "path": # Freehand bounding box
                     w, h = int(obj["width"] * scale_factor), int(obj["height"] * scale_factor)
 
+                # Boundary safety check for slicing
                 y1, y2 = max(0, top), min(real_h, top + h)
                 x1, x2 = max(0, left), min(real_w, left + w)
                 
@@ -152,17 +159,20 @@ if sample_file:
                     
                     area_mm = ( (x2-x1) * (y2-y1) ) / (px_to_mm**2)
                     st.write(f"**Physical Area:** {area_mm:.2f} mm²")
+                    st.caption(f"Peak Intensity in ROI: {np.max(roi)}")
                 else:
-                    st.warning("Selection out of bounds.")
+                    st.warning("Selection is outside the image frame.")
 
             elif obj["type"] == "point":
                 x, y = left, top
                 roi = processed_arr[max(0, y-1):y+2, max(0, x-1):x+2]
                 avg_rgb = np.mean(roi, axis=(0, 1))
+                
                 m1, m2, m3 = st.columns(3)
                 m1.metric("Red", f"{avg_rgb[0]:.0f}")
                 m2.metric("Green", f"{avg_rgb[1]:.0f}")
                 m3.metric("Blue", f"{avg_rgb[2]:.0f}")
+                st.caption(f"Coordinates: ({x}, {y}) px")
 
     # --- 7. HISTOGRAM ---
     with st.expander("📊 RGB Color Distribution"):
