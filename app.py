@@ -85,10 +85,10 @@ if sample_file:
         # Convert to PIL for the canvas component
         display_pil = Image.fromarray(processed_arr.astype(np.uint8))
 
-        # --- 5. INTERACTIVE CANVAS (Session-Safe Version) ---
+        # --- 5. INTERACTIVE CANVAS (0.8.0 Compatible) ---
         st.divider()
         
-        # Using a fixed key like 'physics_canvas_v2' prevents SessionInfo desync
+        # Removed point_display_radius as it is not supported in 0.8.0
         canvas_result = st_canvas(
             fill_color="rgba(141, 32, 60, 0.3)", 
             stroke_width=2,
@@ -98,8 +98,7 @@ if sample_file:
             height=canvas_height,
             width=canvas_width,
             drawing_mode=drawing_mode,
-            point_display_radius=5 if drawing_mode == 'point' else 0,
-            key="physics_canvas_v2", 
+            key="physics_canvas_v3", # Updated key to force a clean slate
         )
 
         # --- 6. DATA EXTRACTION (Override: Latest Only) ---
