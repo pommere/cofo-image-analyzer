@@ -39,15 +39,25 @@ col1, col2 = st.columns([1, 4])
 
 with col1:
     if os.path.exists(logo_path):
-        st.image(logo_path, width=100)
+        st.image(logo_path, width=128)
 
 with col2:
     st.markdown(f"""
-        <h1 style='color: #8D203C; margin-bottom: 0; padding-top: 5px; font-size: 2.2em;'>Image Analysis Lab</h1>
-        <p style='color: #002147; font-style: italic; font-size: 1.1em; margin-top: 0;'>
-        College of the Ozarks | Department of Physics
+        <h1 style='color: #8D203C; margin-bottom: 0; padding-top: 10px; '>Image Analysis Lab</h1>
+        <p style='color: #002147; font-style: italic; font-size: 1.5em; margin-top: 0;'>
+        College of the Ozarks | "Hard Work U"
         </p>
     """, unsafe_allow_html=True)
+
+st.markdown(r"""
+Welcome to the Physics Lab! Students deduce the local acceleration due to gravity ($g$)
+by modeling human locomotion as an **inverted pendulum**. The validity of this model
+is explored by examining the **Froude Number** ($Fr$) constraints and biological noise found
+in their own gait.
+
+1. Upload your **Phyphox CSV** file below.
+2. The app will calculate the FFT to estimate $g$ from your stride period.
+""")
 
 # --- 3. SIDEBAR CONTROLS ---
 st.sidebar.header("1. Laboratory Module")
