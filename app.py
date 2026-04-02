@@ -38,8 +38,8 @@ st.sidebar.divider()
 col1, col2 = st.columns([1, 4]) 
 
 with col1:
-    if os.path.exists(logo_path):
-        st.image(logo_path, width=128)
+    # This places the logo right next to the title
+    st.image("cofo-logo.jpg", width=128) 
 
 with col2:
     st.markdown(f"""
