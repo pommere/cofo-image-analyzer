@@ -104,11 +104,16 @@ if sample_file:
     st.divider()
     st.subheader(f"Tool: {tool_mode}")
     
-    # Calculate responsive height to maintain aspect ratio on canvas
+    # 1. Standardize display width for mobile (320-350px is safe for phones)
+    canvas_width = 350 
     real_h, real_w, _ = processed_arr.shape
-    display_width = 700 # Standard centered width
-    scale_factor = real_w / display_width
-    display_height = int(real_h / scale_factor)
+    
+    # 2. Calculate scale and height as integers
+    scale_factor = real_w / canvas_width
+    canvas_height = int(real_h / scale_factor)
+
+    # 3. Use the file name in the key to force a refresh on new upload
+    canvas_key = f"canvas_{sample_file.name}"
 
     canvas_result = st_canvas(
         fill_color="rgba(141, 32, 60, 0.3)", 
@@ -116,10 +121,10 @@ if sample_file:
         stroke_color="#8D203C",
         background_image=Image.fromarray(processed_arr),
         update_streamlit=True,
-        height=display_height,
-        width=display_width,
+        height=canvas_height,
+        width=canvas_width,
         drawing_mode=drawing_mode,
-        key="canvas",
+        key=canvas_key,
     )
 
     # --- 6. DATA EXTRACTION ---
@@ -129,48 +134,59 @@ if sample_file:
             st.markdown("---")
             st.subheader("Region Statistics")
             
-            # Target the most recent shape
+            # Target the most recent shape drawn
             obj = objects[-1]
             
-            # Map display coords back to real array indices
+            # Map display coords to real array indices
+            # Note: left/top are the top-left of the bounding box
             left = int(obj["left"] * scale_factor)
             top = int(obj["top"] * scale_factor)
             
-            if obj["type"] == "rect":
-                w = int(obj["width"] * scale_factor)
-                h = int(obj["height"] * scale_factor)
+            if obj["type"] in ["rect", "circle"]:
+                # Get dimensions based on shape type
+                if obj["type"] == "rect":
+                    w = int(obj["width"] * scale_factor)
+                    h = int(obj["height"] * scale_factor)
+                else: # Circle
+                    r = int(obj["radius"] * scale_factor)
+                    w, h = 2*r, 2*r
+                    left, top = int((obj["left"] - obj["radius"]) * scale_factor), int((obj["top"] - obj["radius"]) * scale_factor)
+
+                # BOUNDARY CHECK: Ensure we aren't slicing outside the image
+                y1, y2 = max(0, top), min(real_h, top + h)
+                x1, x2 = max(0, left), min(real_w, left + w)
                 
-                # Slice array to get ROI
-                roi = processed_arr[top:top+h, left:left+w]
+                roi = processed_arr[y1:y2, x1:x2]
                 
                 if roi.size > 0:
-                    r_avg, g_avg, b_avg = np.mean(roi, axis=(0, 1))
+                    # Calculate Mean RGB for the region
+                    avg_rgb = np.mean(roi, axis=(0, 1))
                     
-                    c1, c2, c3, c4 = st.columns(4)
-                    c1.metric("Avg Red", f"{r_avg:.1f}")
-                    c2.metric("Avg Green", f"{g_avg:.1f}")
-                    c3.metric("Avg Blue", f"{b_avg:.1f}")
+                    m1, m2, m3 = st.columns(3)
+                    m1.metric("Avg Red", f"{avg_rgb[0]:.1f}")
+                    m2.metric("Avg Green", f"{avg_rgb[1]:.1f}")
+                    m3.metric("Avg Blue", f"{avg_rgb[2]:.1f}")
                     
-                    area_mm = (w * h) / (px_to_mm**2)
-                    c4.metric("Area", f"{area_mm:.2f} mm²")
-                    st.caption(f"Bounding Box: {w}x{h} px")
+                    # Calculate Area
+                    area_mm = ( (x2-x1) * (y2-y1) ) / (px_to_mm**2)
+                    st.write(f"**Physical Area:** {area_mm:.2f} mm²")
+                else:
+                    st.warning("Selection is outside image boundaries.")
 
             elif obj["type"] == "point":
-                # Points in st_canvas have small offsets, center them
-                x, y = left, top
-                r, g, b = processed_arr[y, x]
+                # For points, we take a tiny 3x3 average to be more robust than 1 pixel
+                x = int(obj["left"] * scale_factor)
+                y = int(obj["top"] * scale_factor)
                 
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Red", r)
-                c2.metric("Green", g)
-                c3.metric("Blue", b)
-                st.write(f"**Coordinates:** ({x}, {y}) px")
-
-            elif obj["type"] == "circle":
-                radius = obj["radius"] * scale_factor
-                area_mm = (np.pi * radius**2) / (px_to_mm**2)
-                st.metric("Circular Area", f"{area_mm:.2f} mm²")
-                st.write(f"**Radius:** {radius:.1f} px")
+                # Center the 3x3 window
+                roi = processed_arr[max(0, y-1):y+2, max(0, x-1):x+2]
+                avg_rgb = np.mean(roi, axis=(0, 1))
+                
+                m1, m2, m3 = st.columns(3)
+                m1.metric("Red", f"{avg_rgb[0]:.0f}")
+                m2.metric("Green", f"{avg_rgb[1]:.0f}")
+                m3.metric("Blue", f"{avg_rgb[2]:.0f}")
+                st.caption(f"Coordinates: ({x}, {y}) px")
 
     # --- 7. HISTOGRAM ---
     with st.expander("📊 RGB Color Distribution"):
