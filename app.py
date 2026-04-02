@@ -7,77 +7,43 @@ import os
 from streamlit_image_coordinates import streamlit_image_coordinates
 
 # --- 1. SETTINGS & BRANDING ---
-# Official College of the Ozarks Branding
-# Load Local Logo
-
-# Make sure 'cofo_logo.png' is uploaded to your GitHub repo
 logo_path = "cofo-logo.jpg"
+favicon = Image.open(logo_path) if os.path.exists(logo_path) else None
 
-# Load the image first
-favicon = Image.open("cofo-logo.jpg")
-
-# This MUST be the first Streamlit command
 st.set_page_config(
-    page_title="CofO | Inverted Pendulum Lab", 
+    page_title="CofO | Image Analysis Lab", 
     page_icon=favicon, 
-    layout="centered"
+    layout="centered"  # Reverted to centered for mobile screens
 )
 
+# Custom CSS for College of the Ozarks Branding
 st.markdown("""
     <style>
-        /* 1. Force the Main Title and all headers to Maroon */
-        h1, h2, h3, .stHeader {
-            color: #8D203C !important;
-        }
-
-        /* 2. Target the Sidebar Background (The missing Maroon part) */
-        [data-testid="stSidebar"] {
-            background-color: #8D203C !important;
-        }
-
-        /* 3. Force Sidebar Text to White */
-        [data-testid="stSidebar"] * {
-            color: white !important;
-        }
-
-        /* 4. Fix Sidebar Input Boxes (Dark text on white background) */
-        [data-testid="stSidebar"] input {
-            color: #8D203C !important; 
-        }
-
-        /* 5. Keep the Main Body text black for readability */
-        .stApp p, .stApp span, .stApp li {
-            color: #000000 !important;
-        }
-        
-        /* 6. Metric Styling */
+        section[data-testid="stSidebar"] * { color: white !important; }
+        section[data-testid="stSidebar"] input { color: #8D203C !important; }
+        .stApp p, .stApp h1, .stApp h2, .stApp h3, .stApp span { color: #000000; }
         [data-testid="stMetricLabel"] { color: #444444 !important; }
-        [data-testid="stMetricValue"] { color: #8D203C !important; }
+        [data-testid="stMetricValue"] { color: #000000 !important; }
+        section[data-testid="stSidebar"] hr { border-top: 1px solid #ffffff44 !important; }
     </style>
 """, unsafe_allow_html=True)
 
+# Sidebar Logo & Department Info
 if os.path.exists(logo_path):
-    logo = Image.open(logo_path)
-    st.sidebar.image(logo, use_container_width=True)
-else:
-    # This acts as a fallback if the file isn't found
-    st.sidebar.warning(f"Logo '{logo_path}' not found in repo.")
-
-# Sidebar Branding
+    st.sidebar.image(Image.open(logo_path), use_container_width=True)
 st.sidebar.markdown("### **College of the Ozarks**\nDepartment of Mathematics and Physics")
 st.sidebar.divider()
 
-# --- Styled Main Header with Logo ---
-# Create two columns: a small one for the logo and a large one for the text
+# --- 2. MAIN HEADER ---
 col1, col2 = st.columns([1, 4]) 
 
 with col1:
-    # This places the logo right next to the title
-    st.image("cofo-logo.jpg", width=128) 
+    if os.path.exists(logo_path):
+        st.image(logo_path, width=128)
 
 with col2:
     st.markdown(f"""
-        <h1 style='color: #8D203C; margin-bottom: 0; padding-top: 10px;'>Image Analysis Lab</h1>
+        <h1 style='color: #8D203C; margin-bottom: 0; padding-top: 10px; '>Image Analysis Lab</h1>
         <p style='color: #002147; font-style: italic; font-size: 1.5em; margin-top: 0;'>
         College of the Ozarks | "Hard Work U"
         </p>
@@ -94,6 +60,10 @@ in their own gait.
 """)
 
 # --- 3. SIDEBAR CONTROLS ---
+st.sidebar.header("1. Laboratory Module")
+module = st.sidebar.selectbox("Select Experiment", 
+    ["Mars Rock Phosphorescence", "Polarization & Birefringence", "Chromomagnetic Ferrofluids", "General Analysis"])
+
 st.sidebar.header("2. Calibration")
 px_to_mm = st.sidebar.number_input("Scale (pixels per mm)", value=1.0, min_value=0.001)
 
