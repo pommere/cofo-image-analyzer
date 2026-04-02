@@ -7,52 +7,78 @@ import os
 from streamlit_image_coordinates import streamlit_image_coordinates
 
 # --- 1. SETTINGS & BRANDING ---
-logo_path = "cofo-logo.jpg"
-favicon = Image.open(logo_path) if os.path.exists(logo_path) else None
+# Official College of the Ozarks Branding
+# Load Local Logo
 
+# Make sure 'cofo_logo.png' is uploaded to your GitHub repo
+logo_path = "cofo-logo.jpg"
+
+# Load the image first
+favicon = Image.open("cofo-logo.jpg")
+
+# This MUST be the first Streamlit command
 st.set_page_config(
-    page_title="CofO | Image Analysis Lab", 
+    page_title="CofO | Inverted Pendulum Lab", 
     page_icon=favicon, 
-    layout="centered" 
+    layout="centered"
 )
 
-# FIXED CSS: This sets the Sidebar to Maroon and the Title to Cardinal Red
 st.markdown("""
     <style>
-        /* Sidebar Background and Text */
-        [data-testid="stSidebar"] {
-            background-color: #8D203C !important;
-        }
-        [data-testid="stSidebar"] * { 
-            color: white !important; 
+        /* 1. Target EVERYTHING inside the Sidebar and force it to White */
+        section[data-testid="stSidebar"] * {
+            color: white !important;
         }
         
-        /* Main Body Text Colors */
-        .stApp p, .stApp h1, .stApp h2, .stApp h3, .stApp span { 
-            color: #000000; 
+        /* 2. Fix the Input Boxes in the Sidebar so they are readable */
+        /* (The text the student types should be dark so they can see it against the white box) */
+        section[data-testid="stSidebar"] input {
+            color: #8D203C !important; 
+        }
+
+        /* 3. Ensure the Main Area stays Black (Backup for the config.toml) */
+        .stApp p, .stApp h1, .stApp h2, .stApp h3, .stApp span {
+            color: #000000;
         }
         
-        /* Metric Styling */
-        [data-testid="stMetricLabel"] { color: #444444 !important; }
-        [data-testid="stMetricValue"] { color: #8D203C !important; }
-        
-        /* Clean up sidebar lines */
-        section[data-testid="stSidebar"] hr { border-top: 1px solid #ffffff44 !important; }
+        /* 4. Special case: Keep the Metric Labels (Step Freq, etc) Black */
+        [data-testid="stMetricLabel"] {
+            color: #444444 !important;
+        }
+        [data-testid="stMetricValue"] {
+            color: #000000 !important;
+        }
+
+        /* 5. Make the Sidebar Divider visible but subtle */
+        section[data-testid="stSidebar"] hr {
+            border-top: 1px solid #ffffff44 !important;
+        }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. MAIN HEADER ---
+if os.path.exists(logo_path):
+    logo = Image.open(logo_path)
+    st.sidebar.image(logo, use_container_width=True)
+else:
+    # This acts as a fallback if the file isn't found
+    st.sidebar.warning(f"Logo '{logo_path}' not found in repo.")
+
+# Sidebar Branding
+st.sidebar.markdown("### **College of the Ozarks**\nDepartment of Mathematics and Physics")
+st.sidebar.divider()
+
+# --- Styled Main Header with Logo ---
+# Create two columns: a small one for the logo and a large one for the text
 col1, col2 = st.columns([1, 4]) 
 
 with col1:
-    if os.path.exists(logo_path):
-        # Slightly larger logo like the Pendulum app
-        st.image(logo_path, width=140)
+    # This places the logo right next to the title
+    st.image("cofo-logo.jpg", width=128) 
 
 with col2:
-    # Matching the exact font-size (1.5em) and color from your Pendulum project
+    # Use your official Patriot Red (#8D203C) and Navy (#002147)
     st.markdown(f"""
-        <h1 style='color: #8D203C; margin-bottom: 0; padding-top: 10px; '>Image Analysis Lab</h1>
+        <h1 style='color: #8D203C; margin-bottom: 0; padding-top: 10px;'>Inverted Pendulum Lab</h1>
         <p style='color: #002147; font-style: italic; font-size: 1.5em; margin-top: 0;'>
         College of the Ozarks | "Hard Work U"
         </p>
