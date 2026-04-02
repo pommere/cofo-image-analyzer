@@ -101,6 +101,9 @@ if sample_file:
     display_pil = Image.fromarray(processed_arr.astype(np.uint8))
     
     # In 0.8.0, the key and background_image handling is simpler
+    # Using a simpler, more stable key to prevent SessionInfo desync
+    canvas_key = f"canvas_lab_{sample_file.name}"
+
     canvas_result = st_canvas(
         fill_color="rgba(141, 32, 60, 0.3)", 
         stroke_width=stroke_width,
@@ -110,7 +113,7 @@ if sample_file:
         height=canvas_height,
         width=canvas_width,
         drawing_mode=drawing_mode,
-        key=f"canvas_{sample_file.name}_{'sub' if dark_file else 'raw'}",
+        key=canvas_key,
     )
 
     # --- 6. DATA EXTRACTION ---
