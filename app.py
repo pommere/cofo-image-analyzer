@@ -49,14 +49,15 @@ with col2:
         </p>
     """, unsafe_allow_html=True)
 
+# Updated to be applicable to Image Analysis/Phosphorescence Lab
 st.markdown(r"""
-Welcome to the Physics Lab! Students deduce the local acceleration due to gravity ($g$)
-by modeling human locomotion as an **inverted pendulum**. The validity of this model
-is explored by examining the **Froude Number** ($Fr$) constraints and biological noise found
-in their own gait.
+Welcome to the Physics Lab! Students deduce the physical properties of geological 
+specimens by modeling **UV-excited phosphorescence** and pixel-level kinetics. 
+The validity of these observations is explored by examining the **Intensity** ($I$) 
+decay constraints and signal-to-noise ratios found in digital imagery.
 
-1. Upload your **Phyphox CSV** file below.
-2. The app will calculate the FFT to estimate $g$ from your stride period.
+1. **Upload your Sample Image** (and optional Dark Frame) below.
+2. The app will extract **RGB values** and coordinates to estimate physical data.
 """)
 
 # --- 3. SIDEBAR CONTROLS ---
