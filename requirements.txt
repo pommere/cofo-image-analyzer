@@ -1,8 +1,7 @@
-streamlit
+streamlit==1.40.0
 pandas
 numpy
 opencv-python-headless
-Pillow
-streamlit-image-coordinates
-streamlit-drawable-canvas
+Pillow>=10.0.0
+streamlit-drawable-canvas==0.9.3
 plotly
