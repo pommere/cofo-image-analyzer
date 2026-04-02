@@ -4,8 +4,7 @@ import numpy as np
 import cv2
 from PIL import Image
 import os
-from io import BytesIO
-from streamlit_drawable_canvas import st_canvas
+from streamlit_image_coordinates import streamlit_image_coordinates
 
 # --- 1. SETTINGS & BRANDING ---
 logo_path = "cofo-logo.jpg"
@@ -14,7 +13,7 @@ favicon = Image.open(logo_path) if os.path.exists(logo_path) else None
 st.set_page_config(
     page_title="CofO | Image Analysis Lab", 
     page_icon=favicon, 
-    layout="centered" 
+    layout="centered"  # Reverted to centered for mobile screens
 )
 
 # Custom CSS for College of the Ozarks Branding
@@ -29,100 +28,122 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. SIDEBAR ---
+# Sidebar Logo & Department Info
 if os.path.exists(logo_path):
     st.sidebar.image(Image.open(logo_path), use_container_width=True)
-st.sidebar.markdown("### **Physics Department**\nCollege of the Ozarks")
+st.sidebar.markdown("### **College of the Ozarks**\nDepartment of Mathematics and Physics")
+st.sidebar.divider()
 
-st.sidebar.header("1. Lab Settings")
-stroke_width = st.sidebar.slider("Point Marker Size", 1, 10, 3)
-
-# --- 3. MAIN HEADER & WELCOME ---
+# --- 2. MAIN HEADER ---
 col1, col2 = st.columns([1, 4]) 
+
 with col1:
     if os.path.exists(logo_path):
-        st.image(logo_path, width=120)
+        st.image(logo_path, width=128)
+
 with col2:
     st.markdown(f"""
         <h1 style='color: #8D203C; margin-bottom: 0; padding-top: 10px; '>Image Analysis Lab</h1>
-        <p style='color: #002147; font-style: italic; font-size: 1.3em; margin-top: 0;'>
+        <p style='color: #002147; font-style: italic; font-size: 1.5em; margin-top: 0;'>
         College of the Ozarks | "Hard Work U"
         </p>
     """, unsafe_allow_html=True)
 
-st.markdown("""
-**Objective:** Use the Point tool to sample specific coordinates on your specimen.
-1. Upload your image.
-2. Click directly on the sample to extract **Red, Green, and Blue** intensity values.
+st.markdown(r"""
+Welcome to the Physics Lab! Students deduce the local acceleration due to gravity ($g$)
+by modeling human locomotion as an **inverted pendulum**. The validity of this model
+is explored by examining the **Froude Number** ($Fr$) constraints and biological noise found
+in their own gait.
+
+1. Upload your **Phyphox CSV** file below.
+2. The app will calculate the FFT to estimate $g$ from your stride period.
 """)
 
-# --- 4. STABLE IMAGE PROCESSING ---
-@st.cache_data(show_spinner=False)
-def get_processed_image(file_bytes):
-    if not file_bytes: return None
-    img = Image.open(BytesIO(file_bytes)).convert("RGB")
-    return np.array(img)
+# --- 3. SIDEBAR CONTROLS ---
+st.sidebar.header("1. Laboratory Module")
+module = st.sidebar.selectbox("Select Experiment", 
+    ["Mars Rock Phosphorescence", "Polarization & Birefringence", "Chromomagnetic Ferrofluids", "General Analysis"])
 
-# --- 5. DATA INPUT ---
-sample_file = st.file_uploader("Upload Specimen Image", type=["jpg", "jpeg", "png"], key="uploader_s")
+st.sidebar.header("2. Calibration")
+px_to_mm = st.sidebar.number_input("Scale (pixels per mm)", value=1.0, min_value=0.001)
+
+# --- 4. IMAGE LOADING & BACKGROUND SUBTRACTION ---
+st.subheader("📁 Data Input")
+
+# Stacked vertically for mobile rather than side-by-side columns
+sample_file = st.file_uploader("Upload Sample Image", type=["jpg", "jpeg", "png"])
+with st.expander("Advanced: Upload Dark Frame (Background Subtraction)"):
+    dark_file = st.file_uploader("Upload Dark/Reference Frame", type=["jpg", "jpeg", "png"])
 
 if sample_file:
-    processed_arr = get_processed_image(sample_file.getvalue())
-    
-    if processed_arr is not None:
-        real_h, real_w, _ = processed_arr.shape
-        canvas_width = 350 
-        scale_factor = real_w / canvas_width
-        canvas_height = int(real_h / scale_factor)
-        display_pil = Image.fromarray(processed_arr.astype(np.uint8))
+    sample_img = Image.open(sample_file).convert("RGB")
+    sample_arr = np.array(sample_img)
 
-        # --- 6. POINT CLICK CANVAS ---
-        st.divider()
-        st.caption("Click the image to sample data:")
+    if dark_file:
+        dark_img = Image.open(dark_file).convert("RGB")
+        dark_arr = np.array(dark_img)
         
-        canvas_result = st_canvas(
-            fill_color="rgba(141, 32, 60, 0.3)", 
-            stroke_width=stroke_width,
-            stroke_color="#8D203C",
-            background_image=display_pil,
-            update_streamlit=True,
-            height=canvas_height,
-            width=canvas_width,
-            drawing_mode="point",
-            key="physics_point_lab_v1", 
-        )
+        if sample_arr.shape == dark_arr.shape:
+            processed_arr = cv2.subtract(sample_arr, dark_arr)
+            st.success("✅ Background Subtraction Applied")
+        else:
+            st.error("❌ Error: Image dimensions must match for subtraction.")
+            processed_arr = sample_arr
+    else:
+        processed_arr = sample_arr
 
-        # --- 7. DATA EXTRACTION ---
-        if canvas_result.json_data is not None:
-            objects = canvas_result.json_data["objects"]
-            if objects:
-                st.markdown("---")
-                st.subheader("Point Analysis")
-                
-                # Analyze the most recent click
-                obj = objects[-1]
-                left = int(obj["left"] * scale_factor)
-                top = int(obj["top"] * scale_factor)
-                
-                # Sample a small 3x3 window around the click for stability
-                y1, y2 = max(0, top-1), min(real_h, top+2)
-                x1, x2 = max(0, left-1), min(real_w, left+2)
-                roi = processed_arr[y1:y2, x1:x2]
-                
-                if roi.size > 0:
-                    avg_rgb = np.mean(roi, axis=(0, 1))
-                    c1, c2, c3 = st.columns(3)
-                    c1.metric("Red Intensity", f"{avg_rgb[0]:.0f}")
-                    c2.metric("Green Intensity", f"{avg_rgb[1]:.0f}")
-                    c3.metric("Blue Intensity", f"{avg_rgb[2]:.0f}")
-                    st.write(f"**Coordinates:** x={left}, y={top} (pixels)")
-                else:
-                    st.warning("Click detected outside image bounds.")
+    # --- 5. INTERACTIVE ANALYSIS (Vertical Layout) ---
+    st.divider()
+    st.subheader("Analysis View")
+    st.info("Tap on the image below to extract RGB values.")
+    
+    # Image takes up full width of the centered container
+    value = streamlit_image_coordinates(Image.fromarray(processed_arr), use_column_width=True)
 
-        # --- 8. GLOBAL INTENSITY ---
-        with st.expander("📊 Full Image Statistics"):
-            avg_all = np.mean(processed_arr, axis=(0, 1))
-            st.write(f"**Global Mean RGB:** ({avg_all[0]:.1f}, {avg_all[1]:.1f}, {avg_all[2]:.1f})")
+    if value:
+        st.markdown("---")
+        st.subheader("Pixel Data")
+        
+        real_height, real_width, _ = processed_arr.shape
+        display_width = value['width']
+        display_height = value['height']
+        
+        width_scale = real_width / display_width
+        height_scale = real_height / display_height
+        
+        x = int(value['x'] * width_scale)
+        y = int(value['y'] * height_scale)
+        
+        x = min(x, real_width - 1)
+        y = min(y, real_height - 1)
+        
+        r, g, b = processed_arr[y, x]
+        
+        # Metrics stack nicely on small screens natively
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Red", r)
+        m2.metric("Green", g)
+        m3.metric("Blue", b)
+        
+        intensity = 0.299*r + 0.587*g + 0.114*b
+        m4.metric("Luminance", f"{intensity:.1f}")
+        
+        st.write(f"**True Pixel Coordinates:** ({x}, {y})")
+        st.caption(f"Physical Location: ({x/px_to_mm:.2f}, {y/px_to_mm:.2f}) mm")
+
+    else:
+        st.markdown("---")
+        st.warning("Awaiting interaction. Tap a point on the image above.")
+
+    # --- 6. HISTOGRAM ---
+    with st.expander("📊 RGB Color Distribution"):
+        import plotly.graph_objects as go
+        fig = go.Figure()
+        for i, color in enumerate(['red', 'green', 'blue']):
+            hist, bins = np.histogram(processed_arr[:, :, i], bins=256, range=(0, 256))
+            fig.add_trace(go.Scatter(x=bins[:-1], y=hist, name=color.capitalize(), line=dict(color=color)))
+        fig.update_layout(title="Full Image Intensity Histogram", xaxis_title="Bit Value (0-255)", yaxis_title="Pixel Count")
+        st.plotly_chart(fig, use_container_width=True)
 
 else:
-    st.info("Awaiting specimen image...")
+    st.info("Please upload a sample image to begin analysis.")
