@@ -4,6 +4,8 @@ import numpy as np
 import cv2
 from PIL import Image
 import os
+import base64
+from io import BytesIO
 from streamlit_drawable_canvas import st_canvas
 
 # --- 1. SETTINGS & BRANDING ---
@@ -36,22 +38,20 @@ st.sidebar.divider()
 
 # --- 2. MAIN HEADER ---
 col1, col2 = st.columns([1, 4]) 
-
 with col1:
     if os.path.exists(logo_path):
-        st.image(logo_path, width=128)
+        st.image(logo_path, width=120)
 
 with col2:
     st.markdown(f"""
         <h1 style='color: #8D203C; margin-bottom: 0; padding-top: 10px; '>Image Analysis Lab</h1>
-        <p style='color: #002147; font-style: italic; font-size: 1.5em; margin-top: 0;'>
+        <p style='color: #002147; font-style: italic; font-size: 1.3em; margin-top: 0;'>
         College of the Ozarks | "Hard Work U"
         </p>
     """, unsafe_allow_html=True)
 
 st.markdown(r"""
-Welcome to the Digital Image Analysis Lab! This tool allows you to convert qualitative 
-visual observations into quantitative physical data. 
+Welcome to the Digital Image Analysis Lab! Convert qualitative visual observations into quantitative physical data.
 
 1. **Upload your Sample Image** (and optional Dark Frame).
 2. **Calibrate your scale** and select a **Selection Tool** in the sidebar.
@@ -85,6 +85,7 @@ with st.expander("Advanced: Background Subtraction"):
     dark_file = st.file_uploader("Upload Dark/Reference Frame", type=["jpg", "jpeg", "png"])
 
 if sample_file:
+    # Load and process image
     sample_img = Image.open(sample_file).convert("RGB")
     sample_arr = np.array(sample_img)
 
@@ -95,33 +96,32 @@ if sample_file:
             processed_arr = cv2.subtract(sample_arr, dark_arr)
             st.success("✅ Background Subtraction Applied")
         else:
-            st.error("❌ Dimension Mismatch")
+            st.error("❌ Dimension Mismatch: Images must be identical sizes.")
             processed_arr = sample_arr
     else:
         processed_arr = sample_arr
 
-# --- 5. INTERACTIVE CANVAS ---
+    # --- 5. INTERACTIVE CANVAS ---
     st.divider()
-    st.subheader(f"Tool: {tool_mode}")
     
-    # Force the array to uint8 to prevent 'blank' rendering issues
-    display_img = Image.fromarray(processed_arr.astype(np.uint8))
-    
-    # Standardize width for mobile-friendly use
+    # Standardize dimensions for mobile
     canvas_width = 350 
     real_h, real_w, _ = processed_arr.shape
     scale_factor = real_w / canvas_width
     canvas_height = int(real_h / scale_factor)
 
-    # Key includes 'dark_file' status so it resets when subtraction is toggled
-    bg_status = "dark" if dark_file else "sample"
-    canvas_key = f"canvas_{sample_file.name}_{bg_status}"
+    # Force reset key if file or subtraction state changes
+    bg_mode = "subtracted" if dark_file else "raw"
+    canvas_key = f"canvas_{sample_file.name}_{bg_mode}"
 
+    # Convert image to PIL and then Base64 to bypass browser display bugs
+    display_pil = Image.fromarray(processed_arr.astype(np.uint8))
+    
     canvas_result = st_canvas(
         fill_color="rgba(141, 32, 60, 0.3)", 
         stroke_width=stroke_width,
         stroke_color="#8D203C",
-        background_image=display_img, # Explicitly processed PIL image
+        background_image=display_pil,
         update_streamlit=True,
         height=canvas_height,
         width=canvas_width,
@@ -136,13 +136,12 @@ if sample_file:
             st.markdown("---")
             st.subheader("Region Statistics")
             
-            obj = objects[-1]
+            obj = objects[-1] # Analyze the most recent shape
             
-            # Extract standard coordinates
+            # Map display coords to real array indices
             left = int(obj["left"] * scale_factor)
             top = int(obj["top"] * scale_factor)
             
-            # Handle Shapes (Rect, Circle, and now Path/Freehand)
             if obj["type"] in ["rect", "circle", "path"]:
                 if obj["type"] == "rect":
                     w = int(obj["width"] * scale_factor)
@@ -152,12 +151,11 @@ if sample_file:
                     w, h = 2*r, 2*r
                     left = int((obj["left"] - obj["radius"]) * scale_factor)
                     top = int((obj["top"] - obj["radius"]) * scale_factor)
-                elif obj["type"] == "path":
-                    # Freehand bounding box
+                elif obj["type"] == "path": # Freehand
                     w = int(obj["width"] * scale_factor)
                     h = int(obj["height"] * scale_factor)
 
-                # Boundary safety check
+                # Boundary safety check for slicing
                 y1, y2 = max(0, top), min(real_h, top + h)
                 x1, x2 = max(0, left), min(real_w, left + w)
                 
@@ -172,16 +170,14 @@ if sample_file:
                     m3.metric("Avg Blue", f"{avg_rgb[2]:.1f}")
                     
                     area_mm = ( (x2-x1) * (y2-y1) ) / (px_to_mm**2)
-                    st.write(f"**Physical Area (Bounding Box):** {area_mm:.2f} mm²")
-                    
-                    # Add a quick peak intensity check (useful for phosphorescence)
-                    st.caption(f"Peak Intensity in ROI: {np.max(roi):.0f}")
+                    st.write(f"**Bounding Box Area:** {area_mm:.2f} mm²")
+                    st.caption(f"Peak Intensity in ROI: {np.max(roi)}")
                 else:
-                    st.warning("Selection is outside image boundaries.")
+                    st.warning("Selection is outside the image frame.")
 
             elif obj["type"] == "point":
-                # Robust 3x3 average for single points
                 x, y = left, top
+                # Use a 3x3 average for cleaner point data
                 roi = processed_arr[max(0, y-1):y+2, max(0, x-1):x+2]
                 avg_rgb = np.mean(roi, axis=(0, 1))
                 
@@ -189,6 +185,7 @@ if sample_file:
                 m1.metric("Red", f"{avg_rgb[0]:.0f}")
                 m2.metric("Green", f"{avg_rgb[1]:.0f}")
                 m3.metric("Blue", f"{avg_rgb[2]:.0f}")
+                st.caption(f"Coordinates: ({x}, {y}) px")
 
     # --- 7. HISTOGRAM ---
     with st.expander("📊 RGB Color Distribution"):
@@ -197,7 +194,7 @@ if sample_file:
         for i, color in enumerate(['red', 'green', 'blue']):
             hist, bins = np.histogram(processed_arr[:, :, i], bins=256, range=(0, 256))
             fig.add_trace(go.Scatter(x=bins[:-1], y=hist, name=color.capitalize(), line=dict(color=color)))
-        fig.update_layout(title="Intensity Histogram", xaxis_title="Bit Value", yaxis_title="Pixel Count")
+        fig.update_layout(title="Intensity Histogram", xaxis_title="Bit Value (0-255)", yaxis_title="Pixel Count")
         st.plotly_chart(fig, use_container_width=True)
 
 else:
