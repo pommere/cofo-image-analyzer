@@ -36,13 +36,17 @@ st.sidebar.divider()
 
 # --- 2. MAIN HEADER ---
 col1, col2 = st.columns([1, 5]) 
+
 with col1:
-    st.image(logo_path, width=120) if os.path.exists(logo_path) else None
+    # Use a clean IF block. This avoids the "DeltaGenerator" text dump.
+    if os.path.exists(logo_path):
+        st.image(logo_path, width=120)
+
 with col2:
     st.markdown(f"""
         <h1 style='color: #8D203C; margin-bottom: 0; padding-top: 10px;'>Image Analysis Lab</h1>
         <p style='color: #002147; font-style: italic; font-size: 1.2em; margin-top: 0;'>
-        Digital Image Processing for Physics & Astronomy
+        College of the Ozarks | Department of Physics
         </p>
     """, unsafe_allow_html=True)
 
