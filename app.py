@@ -95,10 +95,6 @@ in their own gait.
 """)
 
 # --- 3. SIDEBAR CONTROLS ---
-st.sidebar.header("1. Laboratory Module")
-module = st.sidebar.selectbox("Select Experiment", 
-    ["Mars Rock Phosphorescence", "Polarization & Birefringence", "Chromomagnetic Ferrofluids", "General Analysis"])
-
 st.sidebar.header("2. Calibration")
 px_to_mm = st.sidebar.number_input("Scale (pixels per mm)", value=1.0, min_value=0.001)
 
