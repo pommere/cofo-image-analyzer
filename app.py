@@ -13,35 +13,44 @@ favicon = Image.open(logo_path) if os.path.exists(logo_path) else None
 st.set_page_config(
     page_title="CofO | Image Analysis Lab", 
     page_icon=favicon, 
-    layout="centered"  # Reverted to centered for mobile screens
+    layout="centered" 
 )
 
-# Custom CSS for College of the Ozarks Branding
+# FIXED CSS: This sets the Sidebar to Maroon and the Title to Cardinal Red
 st.markdown("""
     <style>
-        section[data-testid="stSidebar"] * { color: white !important; }
-        section[data-testid="stSidebar"] input { color: #8D203C !important; }
-        .stApp p, .stApp h1, .stApp h2, .stApp h3, .stApp span { color: #000000; }
+        /* Sidebar Background and Text */
+        [data-testid="stSidebar"] {
+            background-color: #8D203C !important;
+        }
+        [data-testid="stSidebar"] * { 
+            color: white !important; 
+        }
+        
+        /* Main Body Text Colors */
+        .stApp p, .stApp h1, .stApp h2, .stApp h3, .stApp span { 
+            color: #000000; 
+        }
+        
+        /* Metric Styling */
         [data-testid="stMetricLabel"] { color: #444444 !important; }
-        [data-testid="stMetricValue"] { color: #000000 !important; }
+        [data-testid="stMetricValue"] { color: #8D203C !important; }
+        
+        /* Clean up sidebar lines */
         section[data-testid="stSidebar"] hr { border-top: 1px solid #ffffff44 !important; }
     </style>
 """, unsafe_allow_html=True)
-
-# Sidebar Logo & Department Info
-if os.path.exists(logo_path):
-    st.sidebar.image(Image.open(logo_path), use_container_width=True)
-st.sidebar.markdown("### **College of the Ozarks**\nDepartment of Mathematics and Physics")
-st.sidebar.divider()
 
 # --- 2. MAIN HEADER ---
 col1, col2 = st.columns([1, 4]) 
 
 with col1:
     if os.path.exists(logo_path):
-        st.image(logo_path, width=128)
+        # Slightly larger logo like the Pendulum app
+        st.image(logo_path, width=140)
 
 with col2:
+    # Matching the exact font-size (1.5em) and color from your Pendulum project
     st.markdown(f"""
         <h1 style='color: #8D203C; margin-bottom: 0; padding-top: 10px; '>Image Analysis Lab</h1>
         <p style='color: #002147; font-style: italic; font-size: 1.5em; margin-top: 0;'>
