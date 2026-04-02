@@ -62,8 +62,8 @@ Welcome to the Digital Image Analysis Lab! Convert qualitative visual observatio
 st.sidebar.header("1. Analysis Tools")
 tool_mode = st.sidebar.selectbox(
     "Selection Tool",
-    ("Point", "Rectangle", "Circle", "Freehand"),
-    index=1
+    ("Rectangle", "Circle", "Point", "Freehand"),
+    index=0
 )
 
 drawing_mode = {
@@ -101,7 +101,7 @@ if sample_file:
     else:
         processed_arr = sample_arr
 
-    # --- 5. INTERACTIVE CANVAS ---
+    # --- 5. INTERACTIVE CANVAS (WITH BASE64 FIX) ---
     st.divider()
     
     # Standardize dimensions for mobile
@@ -110,13 +110,18 @@ if sample_file:
     scale_factor = real_w / canvas_width
     canvas_height = int(real_h / scale_factor)
 
-    # Force reset key if file or subtraction state changes
+    # Convert image to Base64 to force rendering in Deployed environments
+    display_pil = Image.fromarray(processed_arr.astype(np.uint8))
+    buffered = BytesIO()
+    display_pil.save(buffered, format="PNG")
+    img_str = base64.b64encode(buffered.getvalue()).decode()
+    # This creates a "Data URI" that the canvas can read directly
+    bg_data_uri = f"data:image/png;base64,{img_str}"
+
+    # Unique key ensures refresh when image or mode changes
     bg_mode = "subtracted" if dark_file else "raw"
     canvas_key = f"canvas_{sample_file.name}_{bg_mode}"
 
-    # Convert image to PIL and then Base64 to bypass browser display bugs
-    display_pil = Image.fromarray(processed_arr.astype(np.uint8))
-    
     canvas_result = st_canvas(
         fill_color="rgba(141, 32, 60, 0.3)", 
         stroke_width=stroke_width,
@@ -142,6 +147,7 @@ if sample_file:
             left = int(obj["left"] * scale_factor)
             top = int(obj["top"] * scale_factor)
             
+            # Handle Shapes (Rect, Circle, and now Path/Freehand)
             if obj["type"] in ["rect", "circle", "path"]:
                 if obj["type"] == "rect":
                     w = int(obj["width"] * scale_factor)
@@ -170,14 +176,13 @@ if sample_file:
                     m3.metric("Avg Blue", f"{avg_rgb[2]:.1f}")
                     
                     area_mm = ( (x2-x1) * (y2-y1) ) / (px_to_mm**2)
-                    st.write(f"**Bounding Box Area:** {area_mm:.2f} mm²")
+                    st.write(f"**Physical Area:** {area_mm:.2f} mm²")
                     st.caption(f"Peak Intensity in ROI: {np.max(roi)}")
                 else:
                     st.warning("Selection is outside the image frame.")
 
             elif obj["type"] == "point":
                 x, y = left, top
-                # Use a 3x3 average for cleaner point data
                 roi = processed_arr[max(0, y-1):y+2, max(0, x-1):x+2]
                 avg_rgb = np.mean(roi, axis=(0, 1))
                 
