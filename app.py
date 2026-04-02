@@ -102,28 +102,35 @@ if sample_file:
     with data_col:
         st.subheader("Pixel Data")
         if value:
-            x, y = value['x'], value['y']
-            # Bound check for scaling issues
-            y = min(y, processed_arr.shape[0]-1)
-            x = min(x, processed_arr.shape[1]-1)
-            
+            # 1. Get the 'real' dimensions of the uploaded image
+            real_height, real_width, _ = processed_arr.shape
+        
+            # 2. Get the dimensions of the image as displayed in the browser
+            display_width = value['width']
+            display_height = value['height']
+        
+            # 3. Calculate scaling factors
+            width_scale = real_width / display_width
+            height_scale = real_height / display_height
+        
+            # 4. Map 'click' coordinates to 'real' array indices
+            x = int(value['x'] * width_scale)
+            y = int(value['y'] * height_scale)
+        
+            # 5. Bound check (preventing index errors at the very edge)
+            x = min(x, real_width - 1)
+            y = min(y, real_height - 1)
+        
+            # 6. Extract the actual RGB
             r, g, b = processed_arr[y, x]
-            
-            # Display Metrics
+        
+            # Display the corrected metrics
             m1, m2, m3 = st.columns(3)
             m1.metric("Red", r)
             m2.metric("Green", g)
             m3.metric("Blue", b)
-            
-            st.metric("Coordinates", f"({x}, {y}) px")
-            
-            # Simple Intensity Logic
-            intensity = 0.299*r + 0.587*g + 0.114*b
-            st.write(f"**Luminance (Y'):** {intensity:.2f}")
-            
-            with st.expander("📝 Lab Note"):
-                st.write(f"Coordinates at ({x}, {y}) represent a physical location of roughly "
-                         f"({x/px_to_mm:.2f}, {y/px_to_mm:.2f}) mm based on your current calibration.")
+        
+            st.write(f"**True Pixel Coordinates:** ({x}, {y})")
         else:
             st.write("Click a point on the image to see results.")
 
