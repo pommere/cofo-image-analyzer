@@ -25,34 +25,34 @@ st.set_page_config(
 
 st.markdown("""
     <style>
-        /* 1. Target EVERYTHING inside the Sidebar and force it to White */
-        section[data-testid="stSidebar"] * {
+        /* 1. Force the Main Title and all headers to Maroon */
+        h1, h2, h3, .stHeader {
+            color: #8D203C !important;
+        }
+
+        /* 2. Target the Sidebar Background (The missing Maroon part) */
+        [data-testid="stSidebar"] {
+            background-color: #8D203C !important;
+        }
+
+        /* 3. Force Sidebar Text to White */
+        [data-testid="stSidebar"] * {
             color: white !important;
         }
-        
-        /* 2. Fix the Input Boxes in the Sidebar so they are readable */
-        /* (The text the student types should be dark so they can see it against the white box) */
-        section[data-testid="stSidebar"] input {
+
+        /* 4. Fix Sidebar Input Boxes (Dark text on white background) */
+        [data-testid="stSidebar"] input {
             color: #8D203C !important; 
         }
 
-        /* 3. Ensure the Main Area stays Black (Backup for the config.toml) */
-        .stApp p, .stApp h1, .stApp h2, .stApp h3, .stApp span {
-            color: #000000;
-        }
-        
-        /* 4. Special case: Keep the Metric Labels (Step Freq, etc) Black */
-        [data-testid="stMetricLabel"] {
-            color: #444444 !important;
-        }
-        [data-testid="stMetricValue"] {
+        /* 5. Keep the Main Body text black for readability */
+        .stApp p, .stApp span, .stApp li {
             color: #000000 !important;
         }
-
-        /* 5. Make the Sidebar Divider visible but subtle */
-        section[data-testid="stSidebar"] hr {
-            border-top: 1px solid #ffffff44 !important;
-        }
+        
+        /* 6. Metric Styling */
+        [data-testid="stMetricLabel"] { color: #444444 !important; }
+        [data-testid="stMetricValue"] { color: #8D203C !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -76,9 +76,8 @@ with col1:
     st.image("cofo-logo.jpg", width=128) 
 
 with col2:
-    # Use your official Patriot Red (#8D203C) and Navy (#002147)
     st.markdown(f"""
-        <h1 style='color: #8D203C; margin-bottom: 0; padding-top: 10px;'>Inverted Pendulum Lab</h1>
+        <h1 style='color: #8D203C; margin-bottom: 0; padding-top: 10px;'>Image Analysis Lab</h1>
         <p style='color: #002147; font-style: italic; font-size: 1.5em; margin-top: 0;'>
         College of the Ozarks | "Hard Work U"
         </p>
