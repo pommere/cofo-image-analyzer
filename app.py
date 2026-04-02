@@ -13,10 +13,10 @@ favicon = Image.open(logo_path) if os.path.exists(logo_path) else None
 st.set_page_config(
     page_title="CofO | Image Analysis Lab", 
     page_icon=favicon, 
-    layout="wide"
+    layout="centered"  # Reverted to centered for mobile screens
 )
 
-# Custom CSS for College of the Ozarks Branding (Kept from your original)
+# Custom CSS for College of the Ozarks Branding
 st.markdown("""
     <style>
         section[data-testid="stSidebar"] * { color: white !important; }
@@ -35,17 +35,16 @@ st.sidebar.markdown("### **College of the Ozarks**\nDepartment of Mathematics an
 st.sidebar.divider()
 
 # --- 2. MAIN HEADER ---
-col1, col2 = st.columns([1, 5]) 
+col1, col2 = st.columns([1, 4]) 
 
 with col1:
-    # Use a clean IF block. This avoids the "DeltaGenerator" text dump.
     if os.path.exists(logo_path):
-        st.image(logo_path, width=120)
+        st.image(logo_path, width=100)
 
 with col2:
     st.markdown(f"""
-        <h1 style='color: #8D203C; margin-bottom: 0; padding-top: 10px;'>Image Analysis Lab</h1>
-        <p style='color: #002147; font-style: italic; font-size: 1.2em; margin-top: 0;'>
+        <h1 style='color: #8D203C; margin-bottom: 0; padding-top: 5px; font-size: 2.2em;'>Image Analysis Lab</h1>
+        <p style='color: #002147; font-style: italic; font-size: 1.1em; margin-top: 0;'>
         College of the Ozarks | Department of Physics
         </p>
     """, unsafe_allow_html=True)
@@ -60,15 +59,13 @@ px_to_mm = st.sidebar.number_input("Scale (pixels per mm)", value=1.0, min_value
 
 # --- 4. IMAGE LOADING & BACKGROUND SUBTRACTION ---
 st.subheader("📁 Data Input")
-up_col1, up_col2 = st.columns(2)
 
-with up_col1:
-    sample_file = st.file_uploader("Upload Sample Image", type=["jpg", "jpeg", "png"])
-with up_col2:
-    dark_file = st.file_uploader("Upload Dark/Reference Frame (Optional)", type=["jpg", "jpeg", "png"])
+# Stacked vertically for mobile rather than side-by-side columns
+sample_file = st.file_uploader("Upload Sample Image", type=["jpg", "jpeg", "png"])
+with st.expander("Advanced: Upload Dark Frame (Background Subtraction)"):
+    dark_file = st.file_uploader("Upload Dark/Reference Frame", type=["jpg", "jpeg", "png"])
 
 if sample_file:
-    # Convert Sample to Array
     sample_img = Image.open(sample_file).convert("RGB")
     sample_arr = np.array(sample_img)
 
@@ -76,63 +73,67 @@ if sample_file:
         dark_img = Image.open(dark_file).convert("RGB")
         dark_arr = np.array(dark_img)
         
-        # Ensure sizes match for subtraction
         if sample_arr.shape == dark_arr.shape:
-            # Physics Logic: I_final = I_sample - I_dark
-            # Use cv2.subtract to prevent negative wrap-around (it clips at 0)
             processed_arr = cv2.subtract(sample_arr, dark_arr)
-            st.sidebar.success("✅ Background Subtraction Applied")
+            st.success("✅ Background Subtraction Applied")
         else:
-            st.sidebar.error("❌ Error: Image dimensions must match for subtraction.")
+            st.error("❌ Error: Image dimensions must match for subtraction.")
             processed_arr = sample_arr
     else:
         processed_arr = sample_arr
 
-    # --- 5. INTERACTIVE ANALYSIS ---
+    # --- 5. INTERACTIVE ANALYSIS (Vertical Layout) ---
     st.divider()
-    display_col, data_col = st.columns([2, 1])
+    st.subheader("Analysis View")
+    st.info("Tap on the image below to extract RGB values.")
+    
+    # Image takes up full width of the centered container
+    value = streamlit_image_coordinates(Image.fromarray(processed_arr), use_column_width=True)
 
-    with display_col:
-        st.subheader("Analysis View")
-        st.info("Tap/Click on the image to extract RGB values from that pixel.")
-        
-        # Interactive Component
-        value = streamlit_image_coordinates(Image.fromarray(processed_arr), use_column_width=True)
-
-    with data_col:
+    if value:
+        st.markdown("---")
         st.subheader("Pixel Data")
-        if value:
-            # 1. Get the 'real' dimensions of the uploaded image
-            real_height, real_width, _ = processed_arr.shape
         
-            # 2. Get the dimensions of the image as displayed in the browser
-            display_width = value['width']
-            display_height = value['height']
+        real_height, real_width, _ = processed_arr.shape
+        display_width = value['width']
+        display_height = value['height']
         
-            # 3. Calculate scaling factors
-            width_scale = real_width / display_width
-            height_scale = real_height / display_height
+        width_scale = real_width / display_width
+        height_scale = real_height / display_height
         
-            # 4. Map 'click' coordinates to 'real' array indices
-            x = int(value['x'] * width_scale)
-            y = int(value['y'] * height_scale)
+        x = int(value['x'] * width_scale)
+        y = int(value['y'] * height_scale)
         
-            # 5. Bound check (preventing index errors at the very edge)
-            x = min(x, real_width - 1)
-            y = min(y, real_height - 1)
+        x = min(x, real_width - 1)
+        y = min(y, real_height - 1)
         
-            # 6. Extract the actual RGB
-            r, g, b = processed_arr[y, x]
+        r, g, b = processed_arr[y, x]
         
-            # Display the corrected metrics
-            m1, m2, m3 = st.columns(3)
-            m1.metric("Red", r)
-            m2.metric("Green", g)
-            m3.metric("Blue", b)
+        # Metrics stack nicely on small screens natively
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Red", r)
+        m2.metric("Green", g)
+        m3.metric("Blue", b)
         
-            st.write(f"**True Pixel Coordinates:** ({x}, {y})")
-        else:
-            st.write("Click a point on the image to see results.")
+        intensity = 0.299*r + 0.587*g + 0.114*b
+        m4.metric("Luminance", f"{intensity:.1f}")
+        
+        st.write(f"**True Pixel Coordinates:** ({x}, {y})")
+        st.caption(f"Physical Location: ({x/px_to_mm:.2f}, {y/px_to_mm:.2f}) mm")
+
+    else:
+        st.markdown("---")
+        st.warning("Awaiting interaction. Tap a point on the image above.")
+
+    # --- 6. HISTOGRAM ---
+    with st.expander("📊 RGB Color Distribution"):
+        import plotly.graph_objects as go
+        fig = go.Figure()
+        for i, color in enumerate(['red', 'green', 'blue']):
+            hist, bins = np.histogram(processed_arr[:, :, i], bins=256, range=(0, 256))
+            fig.add_trace(go.Scatter(x=bins[:-1], y=hist, name=color.capitalize(), line=dict(color=color)))
+        fig.update_layout(title="Full Image Intensity Histogram", xaxis_title="Bit Value (0-255)", yaxis_title="Pixel Count")
+        st.plotly_chart(fig, use_container_width=True)
 
 else:
     st.info("Please upload a sample image to begin analysis.")
