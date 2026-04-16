@@ -118,7 +118,7 @@ if sample_file:
         y = max(0, min(y, real_height - 1))
         
         # Draw the visual boundary on the display copy (Cyan for high contrast)
-        cv2.circle(display_arr, (x, y), int(radius_px), (0, 255, 255), 2)
+        cv2.circle(display_arr, (x, y), int(radius_px), (60, 32, 141), 2)
 
     # Render the interactive image with the circle drawn on it
     value = streamlit_image_coordinates(Image.fromarray(display_arr), key="image_analyzer", use_column_width=True)
@@ -156,14 +156,14 @@ if sample_file:
         st.warning("Awaiting interaction. Tap a point on the image above.")
 
     # --- 6. HISTOGRAM ---
-    with st.expander("📊 Full Image RGB Distribution"):
-        import plotly.graph_objects as go
-        fig = go.Figure()
-        for i, color in enumerate(['red', 'green', 'blue']):
-            hist, bins = np.histogram(processed_arr[:, :, i], bins=256, range=(0, 256))
-            fig.add_trace(go.Scatter(x=bins[:-1], y=hist, name=color.capitalize(), line=dict(color=color)))
-        fig.update_layout(title="Full Image Intensity Histogram", xaxis_title="Bit Value (0-255)", yaxis_title="Pixel Count")
-        st.plotly_chart(fig, use_container_width=True)
+    # with st.expander("📊 Full Image RGB Distribution"):
+    #     import plotly.graph_objects as go
+    #     fig = go.Figure()
+    #     for i, color in enumerate(['red', 'green', 'blue']):
+    #         hist, bins = np.histogram(processed_arr[:, :, i], bins=256, range=(0, 256))
+    #         fig.add_trace(go.Scatter(x=bins[:-1], y=hist, name=color.capitalize(), line=dict(color=color)))
+    #     fig.update_layout(title="Full Image Intensity Histogram", xaxis_title="Bit Value (0-255)", yaxis_title="Pixel Count")
+    #     st.plotly_chart(fig, use_container_width=True)
 
 else:
     st.info("Please upload a sample image to begin analysis.")
