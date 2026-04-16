@@ -135,13 +135,37 @@ if sample_file:
         mean_color = cv2.mean(processed_arr, mask=mask)
         r, g, b = mean_color[0], mean_color[1], mean_color[2]
         
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Avg Red", f"{r:.1f}")
-        m2.metric("Avg Green", f"{g:.1f}")
-        m3.metric("Avg Blue", f"{b:.1f}")
+        # Extract mean values inside the mask
+        mean_color = cv2.mean(processed_arr, mask=mask)
+        r_raw, g_raw, b_raw = mean_color[0], mean_color[1], mean_color[2]
         
-        intensity = 0.299*r + 0.587*g + 0.114*b
+        # 1. Standard Metrics Row
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Avg Red", f"{r_raw:.1f}")
+        m2.metric("Avg Green", f"{g_raw:.1f}")
+        m3.metric("Avg Blue", f"{b_raw:.1f}")
+        
+        intensity = 0.299*r_raw + 0.587*g_raw + 0.114*b_raw
         m4.metric("Avg Luminance", f"{intensity:.1f}")
+
+        # 2. Normalized & Ternary Calculations
+        total_rgb = r_raw + g_raw + b_raw + 1e-6
+        rn = r_raw / total_rgb
+        gn = g_raw / total_rgb
+        bn = b_raw / total_rgb
+
+        # Equilateral Ternary Transformation
+        # x = g + 1/2 * b
+        # y = sqrt(3)/2 * b
+        chroma_x = gn + 0.5 * bn
+        chroma_y = (np.sqrt(3) / 2) * bn
+
+        st.markdown("### **Chromaticity Data**")
+        n1, n2, n3, n4 = st.columns(4)
+        n1.metric("Norm Red ($r$)", f"{rn:.3f}")
+        n2.metric("Norm Green ($g$)", f"{gn:.3f}")
+        n3.metric("Norm Blue ($b$)", f"{bn:.3f}")
+        n4.metric("Ternary ($x, y$)", f"{chroma_x:.3f}, {chroma_y:.3f}")
         
         st.write(f"**Center Pixel Coordinates:** ({x}, {y})")
         
