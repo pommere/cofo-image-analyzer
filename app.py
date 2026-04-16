@@ -13,7 +13,7 @@ favicon = Image.open(logo_path) if os.path.exists(logo_path) else None
 st.set_page_config(
     page_title="CofO | Image Analysis Lab", 
     page_icon=favicon, 
-    layout="centered"  # Reverted to centered for mobile screens
+    layout="centered"
 )
 
 # Custom CSS for College of the Ozarks Branding
@@ -38,18 +38,17 @@ st.sidebar.divider()
 col1, col2 = st.columns([1, 4]) 
 
 with col1:
-    # This places the logo right next to the title
-    st.image("cofo-logo.jpg", width=128) 
+    if os.path.exists(logo_path):
+        st.image(logo_path, width=128) 
 
 with col2:
     st.markdown(f"""
         <h1 style='color: #000000; margin-bottom: 0; padding-top: 10px; '>Image Analysis Lab</h1>
-        <p style='color: #002147; font-style: italic; font-size: 1.5em; margin-top: 0;'>
+        <p style='color: #8D203C; font-style: italic; font-size: 1.5em; margin-top: 0;'>
         College of the Ozarks | "Hard Work U"
         </p>
     """, unsafe_allow_html=True)
 
-# Updated to be applicable to Image Analysis/Phosphorescence Lab
 st.markdown(r"""
 Welcome to the Physics Lab! Students deduce the physical properties of geological 
 specimens by modeling **UV-excited phosphorescence** and pixel-level kinetics. 
@@ -57,13 +56,12 @@ The validity of these observations is explored by examining the **Intensity** ($
 decay constraints and signal-to-noise ratios found in digital imagery.
 
 1. **Upload your Sample Image** (and optional Dark Frame) below.
-2. The app will extract **RGB values** and coordinates to estimate physical data.
+2. The app will extract average **RGB values** from your circular selection to estimate physical data.
 """)
 
 # --- 3. SIDEBAR CONTROLS ---
-st.sidebar.header("1. Laboratory Module")
-module = st.sidebar.selectbox("Select Experiment", 
-    ["Mars Rock Phosphorescence", "Polarization & Birefringence", "Chromomagnetic Ferrofluids", "General Analysis"])
+st.sidebar.header("1. Selection Tool")
+radius_px = st.sidebar.number_input("Selection Radius (pixels)", value=10, min_value=1, max_value=500)
 
 st.sidebar.header("2. Calibration")
 px_to_mm = st.sidebar.number_input("Scale (pixels per mm)", value=1.0, min_value=0.001)
@@ -71,7 +69,6 @@ px_to_mm = st.sidebar.number_input("Scale (pixels per mm)", value=1.0, min_value
 # --- 4. IMAGE LOADING & BACKGROUND SUBTRACTION ---
 st.subheader("📁 Data Input")
 
-# Stacked vertically for mobile rather than side-by-side columns
 sample_file = st.file_uploader("Upload Sample Image", type=["jpg", "jpeg", "png"])
 with st.expander("Advanced: Upload Dark Frame (Background Subtraction)"):
     dark_file = st.file_uploader("Upload Dark/Reference Frame", type=["jpg", "jpeg", "png"])
@@ -93,51 +90,73 @@ if sample_file:
     else:
         processed_arr = sample_arr
 
-    # --- 5. INTERACTIVE ANALYSIS (Vertical Layout) ---
+    # --- 5. INTERACTIVE ANALYSIS ---
     st.divider()
     st.subheader("Analysis View")
-    st.info("Tap on the image below to extract RGB values.")
+    st.info("Tap on the image below to extract data within your radius.")
     
-    # Image takes up full width of the centered container
-    value = streamlit_image_coordinates(Image.fromarray(processed_arr), use_column_width=True)
-
-    if value:
-        st.markdown("---")
-        st.subheader("Pixel Data")
-        
+    # Create a working copy for drawing the circle
+    display_arr = processed_arr.copy()
+    
+    # Retrieve the last click from session state BEFORE rendering the image
+    click_data = st.session_state.get("image_analyzer", None)
+    
+    x, y = None, None
+    if click_data and click_data.get('x') is not None:
         real_height, real_width, _ = processed_arr.shape
-        display_width = value['width']
-        display_height = value['height']
+        display_width = click_data['width']
+        display_height = click_data['height']
         
         width_scale = real_width / display_width
         height_scale = real_height / display_height
         
-        x = int(value['x'] * width_scale)
-        y = int(value['y'] * height_scale)
+        x = int(click_data['x'] * width_scale)
+        y = int(click_data['y'] * height_scale)
         
-        x = min(x, real_width - 1)
-        y = min(y, real_height - 1)
+        # Keep coordinates within image bounds
+        x = max(0, min(x, real_width - 1))
+        y = max(0, min(y, real_height - 1))
         
-        r, g, b = processed_arr[y, x]
+        # Draw the visual boundary on the display copy (Cyan for high contrast)
+        cv2.circle(display_arr, (x, y), int(radius_px), (0, 255, 255), 2)
+
+    # Render the interactive image with the circle drawn on it
+    value = streamlit_image_coordinates(Image.fromarray(display_arr), key="image_analyzer", use_column_width=True)
+
+    if x is not None and y is not None:
+        st.markdown("---")
+        st.subheader("Selection Data")
         
-        # Metrics stack nicely on small screens natively
+        # Create a filled mask to calculate the mathematical average of the selection
+        mask = np.zeros(processed_arr.shape[:2], dtype=np.uint8)
+        cv2.circle(mask, (x, y), int(radius_px), 255, -1) 
+        
+        # Extract mean values inside the mask
+        mean_color = cv2.mean(processed_arr, mask=mask)
+        r, g, b = mean_color[0], mean_color[1], mean_color[2]
+        
         m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Red", r)
-        m2.metric("Green", g)
-        m3.metric("Blue", b)
+        m1.metric("Avg Red", f"{r:.1f}")
+        m2.metric("Avg Green", f"{g:.1f}")
+        m3.metric("Avg Blue", f"{b:.1f}")
         
         intensity = 0.299*r + 0.587*g + 0.114*b
-        m4.metric("Luminance", f"{intensity:.1f}")
+        m4.metric("Avg Luminance", f"{intensity:.1f}")
         
-        st.write(f"**True Pixel Coordinates:** ({x}, {y})")
-        st.caption(f"Physical Location: ({x/px_to_mm:.2f}, {y/px_to_mm:.2f}) mm")
+        st.write(f"**Center Pixel Coordinates:** ({x}, {y})")
+        
+        # Calculate physical dimensions based on calibration
+        physical_x = x / px_to_mm
+        physical_y = y / px_to_mm
+        physical_area = np.pi * (radius_px / px_to_mm)**2
+        st.caption(f"Physical Center: ({physical_x:.2f}, {physical_y:.2f}) mm | Sample Area: {physical_area:.2f} mm²")
 
     else:
         st.markdown("---")
         st.warning("Awaiting interaction. Tap a point on the image above.")
 
     # --- 6. HISTOGRAM ---
-    with st.expander("📊 RGB Color Distribution"):
+    with st.expander("📊 Full Image RGB Distribution"):
         import plotly.graph_objects as go
         fig = go.Figure()
         for i, color in enumerate(['red', 'green', 'blue']):
