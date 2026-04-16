@@ -160,12 +160,13 @@ if sample_file:
         chroma_x = gn + 0.5 * bn
         chroma_y = (np.sqrt(3) / 2) * bn
 
-        st.markdown("### **Chromaticity Data**")
-        n1, n2, n3, n4 = st.columns(4)
+        st.markdown("### **Ternary Data**")
+        n1, n2, n3, n4, n5 = st.columns(5) # Expanded to 5 columns
         n1.metric("Norm Red ($r$)", f"{rn:.3f}")
         n2.metric("Norm Green ($g$)", f"{gn:.3f}")
         n3.metric("Norm Blue ($b$)", f"{bn:.3f}")
-        n4.metric("Ternary ($x, y$)", f"{chroma_x:.3f}, {chroma_y:.3f}")
+        n4.metric("Ternary $x$", f"{chroma_x:.3f}")
+        n5.metric("Ternary $y$", f"{chroma_y:.3f}")
         
         st.write(f"**Center Pixel Coordinates:** ({x}, {y})")
         
