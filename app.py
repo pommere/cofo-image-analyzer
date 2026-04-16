@@ -118,7 +118,7 @@ if sample_file:
         y = max(0, min(y, real_height - 1))
         
         # Draw the visual boundary on the display copy (Cyan for high contrast)
-        cv2.circle(display_arr, (x, y), int(radius_px), (60, 32, 141), 2)
+        cv2.circle(display_arr, (x, y), int(radius_px), (60, 32, 141), 3)
 
     # Render the interactive image with the circle drawn on it
     value = streamlit_image_coordinates(Image.fromarray(display_arr), key="image_analyzer", use_column_width=True)
