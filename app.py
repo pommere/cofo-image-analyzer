@@ -160,7 +160,7 @@ if sample_file:
         chroma_x = gn + 0.5 * bn
         chroma_y = (np.sqrt(3) / 2) * bn
 
-        st.markdown("### **Ternary Data**")
+        st.markdown("### **Ternary Calculation**")
         n1, n2, n3, n4, n5 = st.columns(5) # Expanded to 5 columns
         n1.metric("Norm Red ($r$)", f"{rn:.3f}")
         n2.metric("Norm Green ($g$)", f"{gn:.3f}")
